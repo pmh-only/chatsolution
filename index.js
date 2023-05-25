@@ -24,9 +24,10 @@ io.on('connection', (socket) => {
     socket.emit('chat', { type: 'history', ...lastChat })
 
   socket.on('chat', (data) => {
-    last10chat = last10chat.slice(1)
+    if (last10chat.length > 9)
+      last10chat = last10chat.slice(1)
+      
     last10chat.push(data)
-
     io.emit('chat', data)
   })
 })
