@@ -21,7 +21,7 @@ app.get('/', (_, res) => {
 
 io.on('connection', (socket) => {
   for (const lastChat of last10chat)
-    socket.emit(lastChat)
+    socket.emit('chat', { type: 'history', ...lastChat })
 
   socket.on('chat', (data) => {
     last10chat = last10chat.slice(1)
@@ -31,4 +31,4 @@ io.on('connection', (socket) => {
   })
 })
 
-server.listen(3000)
+server.listen(80)

@@ -20,3 +20,12 @@ window.c = ([chat]) => {
   socket.emit('chat', { success: true, author, data: chat })
   return { type: 'message sent', success: true }
 }
+
+window.l = () => {
+  for (;;) {
+    const chat = prompt()
+    if (!chat) break
+
+    socket.emit('chat', { success: true, author, data: chat })
+  }
+}
