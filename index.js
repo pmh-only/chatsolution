@@ -21,7 +21,7 @@ io.on('connection', (socket) => {
   socket.join('main')
   
   socket.on('broadcast', (data, ack) => {
-    io.emit('boardcast', data)
+    io.emit('broadcast', data)
     ack?.()
   })
 })

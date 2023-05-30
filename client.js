@@ -4,18 +4,18 @@ const socket = io('wss://chatsolution.shutupandtakemy.codes')
 let author = '익명의 누군가'
 let room = undefined
 
-socket.on('boardcast', (data) => {
+socket.on('broadcast', (data) => {
   if (data.room === undefined || data.room === room)
     console.log(data)
 })
 
-window.a = ([data]) => {
-  author = data
+window.a = ([authorName]) => {
+  author = authorName
   return { type: 'author name changed', success: true }
 }
 
-window.c = ([boardcast]) => {
-  socket.emit('boardcast', { success: true, room, author, data: chat })
+window.c = ([message]) => {
+  socket.emit('broadcast', { success: true, room, author, message })
   return { type: 'message sent', success: true }
 }
 
