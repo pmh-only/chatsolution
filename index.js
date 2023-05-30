@@ -11,8 +11,6 @@ const io = new Server(server, {
 const cors = require('cors')
 const { readFileSync } = require('fs')
 
-let last10chat = []
-
 app.use(cors())
 app.get('/', (_, res) => {
   res.set('Content-Type', 'text/javascript')
@@ -20,23 +18,11 @@ app.get('/', (_, res) => {
 })
 
 io.on('connection', (socket) => {
-  io.emit('chat', 'Someone connected.')
   socket.join('main')
   
-  for (const lastChat of last10chat)
-    socket.emit('chat', { type: 'history', ...lastChat })
-    
-  socket.on('chat', (data, ack) => {
-    if (last10chat.length > 9)
-      last10chat = last10chat.slice(1)
-    
-    last10chat.push(data)
-    io.emit('chat', data)
-    ack()
-  })
-
-  socket.on('disconnect', () => {
-    io.emit('chat', 'Someone disconnected.')
+  socket.on('broadcast', (data, ack) => {
+    io.emit('boardcast', data)
+    ack?.()
   })
 })
 
