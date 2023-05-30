@@ -1,6 +1,6 @@
 import { io } from 'https://cdn.socket.io/4.4.1/socket.io.esm.min.js'
 
-const socket = io('ws://localhost:80')
+const socket = io('wss://chatsolution.shutupandtakemy.codes')
 let author = '익명의 누군가'
 
 socket.on('connect', () => {
