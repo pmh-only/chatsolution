@@ -12,6 +12,7 @@ const cors = require('cors')
 const { readFileSync } = require('fs')
 
 let last10chat = []
+let sockets = []
 
 app.use(cors())
 app.get('/', (_, res) => {
@@ -20,6 +21,10 @@ app.get('/', (_, res) => {
 })
 
 io.on('connection', (socket) => {
+  io.emit('Someone connected.')
+  sockets.push(socket)
+  socket.join('main')
+
   for (const lastChat of last10chat)
     socket.emit('chat', { type: 'history', ...lastChat })
 
@@ -28,7 +33,25 @@ io.on('connection', (socket) => {
       last10chat = last10chat.slice(1)
       
     last10chat.push(data)
-    io.emit('chat', data)
+    io.to(socket.rooms[0]).emit('chat', data)
+  })
+
+  socket.on('room', (room) => {
+    socket.leave(socket.rooms[0])
+    socket.join(room)
+  })
+
+  socket.on('rooms', () => {
+    const rooms = new Set()
+    for (const selSocket of sockets)
+      rooms.add(selSocket.room)
+
+    socket.emit()
+  })
+
+  socket.on('disconnect', () => {
+    io.emit('Someone disconnected.')
+    sockets = sockets.filter((v) => v.id = socket.id)
   })
 })
 

@@ -21,11 +21,12 @@ window.c = ([chat]) => {
   return { type: 'message sent', success: true }
 }
 
-window.l = () => {
-  for (;;) {
-    const chat = prompt()
-    if (!chat) break
+window.r = ([room]) => {
+  socket.emit('room', room)
+  return { type: 'room changed', success: true }
+}
 
-    socket.emit('chat', { success: true, author, data: chat })
-  }
+window.rl = () => {
+  socket.emit('rooms')
+  return { type: 'request room list', success: true }
 }
