@@ -20,13 +20,3 @@ window.c = ([chat]) => {
   socket.emit('chat', { success: true, author, data: chat })
   return { type: 'message sent', success: true }
 }
-
-window.r = ([room]) => {
-  socket.emit('room', room)
-  return { type: 'room changed', success: true }
-}
-
-window.rl = () => {
-  socket.emit('rooms')
-  return { type: 'request room list', success: true }
-}
