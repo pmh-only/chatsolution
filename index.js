@@ -3,7 +3,8 @@ const { Server } = require("socket.io")
 
 const server = http.createServer()
 const io = new Server(server, {
-  cors: { origin: '*' }
+  cors: { origin: '*' },
+  maxHttpBufferSize: 100 * 1e6 // 100MB
 })
 
 io.on('connection', (socket) =>
