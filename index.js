@@ -1,14 +1,9 @@
-const http = require('http')
-const { Server } = require("socket.io")
+import WebSocket, { WebSocketServer } from 'ws'
 
-const server = http.createServer()
-const io = new Server(server, {
-  cors: { origin: '*' },
-  maxHttpBufferSize: 100 * 1e6 // 100MB
-})
+const wss = new WebSocketServer({ port: 80 })
 
-io.on('connection', (socket) =>
-  socket.on('broadcast', (data, ack) =>
-    io.emit('broadcast', data) && ack?.()))
-
-server.listen(80)
+wss.on('connection', (ws) =>
+  ws.on('message', (data) =>
+    wss.clients.forEach((client) =>
+      client.readyState === WebSocket.OPEN &&
+        client.send(data))))
