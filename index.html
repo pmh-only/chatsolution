@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>온디바이스 워터컬러 익명화</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f4f2;
+      --panel: #ffffff;
+      --ink: #1f2430;
+      --muted: #5b6475;
+      --accent: #3f7b9d;
+      --border: #d8dee6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.45;
+    }
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 16px;
+      display: grid;
+      gap: 14px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 2px 8px rgba(25,40,61,.05);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.2rem;
+    }
+    p { margin: 4px 0; color: var(--muted); }
+    .grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      align-items: end;
+    }
+    label { display: grid; gap: 4px; font-size: .9rem; }
+    select, input[type="range"], input[type="file"], button {
+      width: 100%;
+      padding: 9px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      font: inherit;
+      color: inherit;
+    }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    button {
+      cursor: pointer;
+      background: var(--accent);
+      color: white;
+      border: none;
+      font-weight: 600;
+    }
+    button.secondary { background: #68768f; }
+    button:disabled { opacity: .6; cursor: wait; }
+    .preview {
+      position: relative;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: #e9edf2;
+      min-height: 260px;
+      display: grid;
+      place-items: center;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-height: 72vh;
+    }
+    .pill {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #edf2f7;
+      color: #435067;
+      font-size: .8rem;
+      margin-right: 6px;
+    }
+    .status { font-size: .9rem; color: #39506a; min-height: 1.2em; }
+    .hint { font-size: .82rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="card">
+      <h1>오프라인 사진 익명화 + 수채화 스타일러</h1>
+      <p>이미지는 브라우저 로컬에서만 처리되며 서버 업로드/네트워크 전송을 하지 않습니다.</p>
+      <p class="hint"><span class="pill">Privacy</span><span class="pill">EXIF 제거</span><span class="pill">비가역 정보 손실</span></p>
+    </section>
+
+    <section class="card">
+      <div class="grid">
+        <label>이미지 업로드
+          <input id="fileInput" type="file" accept="image/*" />
+        </label>
+        <label>Resize(긴 변)
+          <select id="resizeMax">
+            <option value="1024">1024</option>
+            <option value="1280" selected>1280</option>
+            <option value="1600">1600</option>
+          </select>
+        </label>
+        <label>Blur strength
+          <select id="blurStrength">
+            <option value="low" selected>Low</option>
+            <option value="med">Med</option>
+          </select>
+        </label>
+        <label>Posterize
+          <select id="posterBits">
+            <option value="4">4bit</option>
+            <option value="5" selected>5bit</option>
+            <option value="6">6bit</option>
+          </select>
+        </label>
+        <label>Warp
+          <select id="warpEnabled">
+            <option value="on" selected>On</option>
+            <option value="off">Off</option>
+          </select>
+        </label>
+        <label>Noise <span id="noiseLabel">3%</span>
+          <input id="noiseLevel" type="range" min="0" max="8" value="3" step="1" />
+        </label>
+        <label>다운로드 형식
+          <select id="downloadFmt">
+            <option value="image/png" selected>PNG</option>
+            <option value="image/jpeg">JPG</option>
+          </select>
+        </label>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <button id="processBtn" disabled>파이프라인 적용</button>
+        <button id="toggleBtn" class="secondary" disabled>비교: 결과 보기</button>
+        <button id="downloadBtn" class="secondary" disabled>결과 다운로드</button>
+        <button id="batteryBtn" class="secondary">배터리 절약 모드</button>
+      </div>
+      <p class="status" id="status"></p>
+    </section>
+
+    <section class="card preview">
+      <canvas id="viewCanvas"></canvas>
+      <p id="emptyText">이미지를 업로드하면 여기서 미리보기가 보입니다.</p>
+    </section>
+  </div>
+
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const resizeMax = document.getElementById('resizeMax');
+    const blurStrength = document.getElementById('blurStrength');
+    const posterBits = document.getElementById('posterBits');
+    const warpEnabled = document.getElementById('warpEnabled');
+    const noiseLevel = document.getElementById('noiseLevel');
+    const noiseLabel = document.getElementById('noiseLabel');
+    const downloadFmt = document.getElementById('downloadFmt');
+    const processBtn = document.getElementById('processBtn');
+    const toggleBtn = document.getElementById('toggleBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const batteryBtn = document.getElementById('batteryBtn');
+    const statusEl = document.getElementById('status');
+    const viewCanvas = document.getElementById('viewCanvas');
+    const emptyText = document.getElementById('emptyText');
+    const viewCtx = viewCanvas.getContext('2d', { alpha: false, willReadFrequently: true });
+
+    let originalCanvas = null;
+    let processedCanvas = null;
+    let showProcessed = true;
+
+    noiseLevel.addEventListener('input', () => {
+      noiseLabel.textContent = `${noiseLevel.value}%`;
+    });
+
+    batteryBtn.addEventListener('click', () => {
+      resizeMax.value = '1024';
+      blurStrength.value = 'low';
+      posterBits.value = '5';
+      warpEnabled.value = 'off';
+      noiseLevel.value = '2';
+      noiseLabel.textContent = '2%';
+      setStatus('배터리 절약 모드 적용: 1024 / Blur Low / Warp Off / Noise 2%');
+    });
+
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+      try {
+        setStatus('이미지 로딩 중...');
+        originalCanvas = await decodeAndResize(file, Number(resizeMax.value));
+        processedCanvas = null;
+        showProcessed = false;
+        drawPreview(originalCanvas);
+        emptyText.style.display = 'none';
+        processBtn.disabled = false;
+        toggleBtn.disabled = true;
+        downloadBtn.disabled = true;
+        toggleBtn.textContent = '비교: 원본 보기';
+        setStatus(`로딩 완료: ${originalCanvas.width}x${originalCanvas.height} (EXIF 제거됨)`);
+      } catch (err) {
+        console.error(err);
+        setStatus('이미지 로딩 실패: 다른 사진을 시도해 주세요.');
+      }
+    });
+
+    processBtn.addEventListener('click', async () => {
+      if (!originalCanvas) return;
+      processBtn.disabled = true;
+      try {
+        setStatus('파이프라인 처리 중...');
+        const t0 = performance.now();
+        processedCanvas = await runPipeline(originalCanvas, {
+          blur: blurStrength.value,
+          bits: Number(posterBits.value),
+          warp: warpEnabled.value === 'on',
+          noisePct: Number(noiseLevel.value)
+        });
+        showProcessed = true;
+        drawPreview(processedCanvas);
+        toggleBtn.disabled = false;
+        downloadBtn.disabled = false;
+        toggleBtn.textContent = '비교: 원본 보기';
+        const dt = (performance.now() - t0).toFixed(0);
+        setStatus(`완료: ${dt}ms / 로컬 처리 (네트워크 전송 없음)`);
+      } catch (err) {
+        console.error(err);
+        setStatus('처리 실패: 설정을 낮춰 다시 시도해 주세요.');
+      } finally {
+        processBtn.disabled = false;
+      }
+    });
+
+    toggleBtn.addEventListener('click', () => {
+      if (!originalCanvas || !processedCanvas) return;
+      showProcessed = !showProcessed;
+      drawPreview(showProcessed ? processedCanvas : originalCanvas);
+      toggleBtn.textContent = showProcessed ? '비교: 원본 보기' : '비교: 결과 보기';
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      if (!processedCanvas) return;
+      const type = downloadFmt.value;
+      const ext = type === 'image/png' ? 'png' : 'jpg';
+      const quality = type === 'image/jpeg' ? 0.92 : undefined;
+      processedCanvas.toBlob((blob) => {
+        if (!blob) return;
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `private-watercolor-${Date.now()}.${ext}`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+      }, type, quality);
+    });
+
+    function setStatus(msg) { statusEl.textContent = msg; }
+
+    async function decodeAndResize(file, maxSide) {
+      const bitmap = await createImageBitmap(file);
+      const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+      const w = Math.max(1, Math.round(bitmap.width * scale));
+      const h = Math.max(1, Math.round(bitmap.height * scale));
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      const ctx = c.getContext('2d', { alpha: false });
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(bitmap, 0, 0, w, h);
+      bitmap.close?.();
+      return c;
+    }
+
+    function drawPreview(canvas) {
+      viewCanvas.width = canvas.width;
+      viewCanvas.height = canvas.height;
+      viewCtx.drawImage(canvas, 0, 0);
+    }
+
+    async function runPipeline(sourceCanvas, opt) {
+      const w = sourceCanvas.width;
+      const h = sourceCanvas.height;
+      const workCanvas = document.createElement('canvas');
+      workCanvas.width = w;
+      workCanvas.height = h;
+      const ctx = workCanvas.getContext('2d', { alpha: false, willReadFrequently: true });
+      ctx.drawImage(sourceCanvas, 0, 0);
+
+      let base = ctx.getImageData(0, 0, w, h);
+      // Step C: 저비용 edge-preserving 근사
+      base = fastEdgePreserve(base, w, h, opt.blur === 'med' ? 2 : 1);
+      // Step D: Posterize
+      posterize(base.data, opt.bits);
+      // Step E: 약한 랜덤 워프
+      if (opt.warp) base = warpImage(base, w, h, 16, 2);
+      // Step F: 미세 노이즈 / 종이 느낌
+      applyNoise(base.data, opt.noisePct);
+
+      ctx.putImageData(base, 0, 0);
+      return workCanvas;
+    }
+
+    function fastEdgePreserve(img, w, h, passes) {
+      let current = img;
+      for (let p = 0; p < passes; p++) {
+        const blurred = boxBlur3x3(current, w, h);
+        const src = current.data;
+        const blr = blurred.data;
+        const out = new Uint8ClampedArray(src.length);
+        for (let i = 0; i < src.length; i += 4) {
+          const y0 = (src[i] * 30 + src[i + 1] * 59 + src[i + 2] * 11) / 100;
+          const y1 = (blr[i] * 30 + blr[i + 1] * 59 + blr[i + 2] * 11) / 100;
+          const edge = Math.min(1, Math.abs(y0 - y1) / 28); // edge 강할수록 원본 보존
+          const k = 0.78 * (1 - edge);
+          out[i]     = src[i]     * (1 - k) + blr[i]     * k;
+          out[i + 1] = src[i + 1] * (1 - k) + blr[i + 1] * k;
+          out[i + 2] = src[i + 2] * (1 - k) + blr[i + 2] * k;
+          out[i + 3] = 255;
+        }
+        current = new ImageData(out, w, h);
+      }
+      return current;
+    }
+
+    function boxBlur3x3(img, w, h) {
+      const s = img.data;
+      const o = new Uint8ClampedArray(s.length);
+      for (let y = 0; y < h; y++) {
+        const y0 = Math.max(0, y - 1), y1 = y, y2 = Math.min(h - 1, y + 1);
+        for (let x = 0; x < w; x++) {
+          const x0 = Math.max(0, x - 1), x1 = x, x2 = Math.min(w - 1, x + 1);
+          const idx = (y * w + x) * 4;
+          let r = 0, g = 0, b = 0;
+          const p00 = (y0 * w + x0) * 4, p01 = (y0 * w + x1) * 4, p02 = (y0 * w + x2) * 4;
+          const p10 = (y1 * w + x0) * 4, p11 = (y1 * w + x1) * 4, p12 = (y1 * w + x2) * 4;
+          const p20 = (y2 * w + x0) * 4, p21 = (y2 * w + x1) * 4, p22 = (y2 * w + x2) * 4;
+          r = s[p00] + s[p01] + s[p02] + s[p10] + s[p11] + s[p12] + s[p20] + s[p21] + s[p22];
+          g = s[p00+1] + s[p01+1] + s[p02+1] + s[p10+1] + s[p11+1] + s[p12+1] + s[p20+1] + s[p21+1] + s[p22+1];
+          b = s[p00+2] + s[p01+2] + s[p02+2] + s[p10+2] + s[p11+2] + s[p12+2] + s[p20+2] + s[p21+2] + s[p22+2];
+          o[idx] = r / 9;
+          o[idx + 1] = g / 9;
+          o[idx + 2] = b / 9;
+          o[idx + 3] = 255;
+        }
+      }
+      return new ImageData(o, w, h);
+    }
+
+    function posterize(data, bits) {
+      const levels = 1 << bits;
+      const scale = 255 / (levels - 1);
+      for (let i = 0; i < data.length; i += 4) {
+        data[i] = Math.round(Math.round(data[i] / scale) * scale);
+        data[i + 1] = Math.round(Math.round(data[i + 1] / scale) * scale);
+        data[i + 2] = Math.round(Math.round(data[i + 2] / scale) * scale);
+      }
+    }
+
+    function warpImage(img, w, h, gridSize, maxShift) {
+      const src = img.data;
+      const out = new Uint8ClampedArray(src.length);
+      const gx = Math.ceil(w / gridSize) + 1;
+      const gy = Math.ceil(h / gridSize) + 1;
+      const field = new Float32Array(gx * gy * 2);
+      for (let j = 0; j < gy; j++) {
+        for (let i = 0; i < gx; i++) {
+          const k = (j * gx + i) * 2;
+          const fade = 0.5 + 0.5 * Math.random();
+          field[k] = (Math.random() * 2 - 1) * maxShift * fade;
+          field[k + 1] = (Math.random() * 2 - 1) * maxShift * fade;
+        }
+      }
+
+      for (let y = 0; y < h; y++) {
+        const gyf = y / gridSize;
+        const j0 = Math.floor(gyf);
+        const j1 = Math.min(gy - 1, j0 + 1);
+        const ty = gyf - j0;
+        for (let x = 0; x < w; x++) {
+          const gxf = x / gridSize;
+          const i0 = Math.floor(gxf);
+          const i1 = Math.min(gx - 1, i0 + 1);
+          const tx = gxf - i0;
+
+          const k00 = (j0 * gx + i0) * 2;
+          const k10 = (j0 * gx + i1) * 2;
+          const k01 = (j1 * gx + i0) * 2;
+          const k11 = (j1 * gx + i1) * 2;
+
+          const dx = lerp2(field[k00], field[k10], field[k01], field[k11], tx, ty);
+          const dy = lerp2(field[k00 + 1], field[k10 + 1], field[k01 + 1], field[k11 + 1], tx, ty);
+          sampleBilinear(src, out, w, h, x + dx, y + dy, x, y);
+        }
+      }
+      return new ImageData(out, w, h);
+    }
+
+    function lerp2(a, b, c, d, tx, ty) {
+      const u = a + (b - a) * tx;
+      const v = c + (d - c) * tx;
+      return u + (v - u) * ty;
+    }
+
+    function sampleBilinear(src, out, w, h, fx, fy, ox, oy) {
+      const x = Math.max(0, Math.min(w - 1, fx));
+      const y = Math.max(0, Math.min(h - 1, fy));
+      const x0 = Math.floor(x), y0 = Math.floor(y);
+      const x1 = Math.min(w - 1, x0 + 1), y1 = Math.min(h - 1, y0 + 1);
+      const tx = x - x0, ty = y - y0;
+
+      const i00 = (y0 * w + x0) * 4, i10 = (y0 * w + x1) * 4;
+      const i01 = (y1 * w + x0) * 4, i11 = (y1 * w + x1) * 4;
+      const o = (oy * w + ox) * 4;
+
+      for (let c = 0; c < 3; c++) {
+        const a = src[i00 + c] + (src[i10 + c] - src[i00 + c]) * tx;
+        const b = src[i01 + c] + (src[i11 + c] - src[i01 + c]) * tx;
+        out[o + c] = a + (b - a) * ty;
+      }
+      out[o + 3] = 255;
+    }
+
+    function applyNoise(data, noisePct) {
+      if (noisePct <= 0) return;
+      const amp = noisePct * 1.3;
+      for (let i = 0; i < data.length; i += 4) {
+        const n = (Math.random() * 2 - 1) * amp;
+        data[i] = clamp255(data[i] + n);
+        data[i + 1] = clamp255(data[i + 1] + n * 0.92);
+        data[i + 2] = clamp255(data[i + 2] + n * 0.85);
+      }
+    }
+
+    function clamp255(v) {
+      return v < 0 ? 0 : v > 255 ? 255 : v;
+    }
+  </script>
+</body>
+</html>
